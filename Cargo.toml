@@ -1,0 +1,13 @@
+[package]
+name = "gmcpde"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+plotters = "0.3.3"
+pollster = "0.4.0"
+flume = "0.11.1"
+anyhow = "1.0.100"
+wgpu = "27.0.1"
+cgmath = { version = "0.18.0", features = ["swizzle"] }
+rand = "0.9.2"
