@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail};
-use cgmath::{Point2, prelude::*};
+use cgmath::{Point2, Vector2, dot, prelude::*};
 
 #[derive(Clone)]
 pub struct ParametricComposite {
@@ -21,23 +21,8 @@ pub struct Bezier {
 #[derive(Clone)]
 pub enum Geom2D {
     Line(Line),
-    Bezier(Bezier),
+    //    Bezier(Bezier),
 }
-
-// pub struct ClampedF32(f32);
-//
-// impl ClampedF32 {
-//     pub fn new(value: f32) -> Result<Self> {
-//         if (0f32..=1f32).contains(&value) {
-//             Ok(Self(value))
-//         } else {
-//             bail!("Value must be in range [0; 1]")
-//         }
-//     }
-//     pub fn value(&self) -> f32 {
-//         self.0
-//     }
-// }
 
 impl Line {
     pub fn new(start_point: Point2<f32>, end_point: Point2<f32>) -> Result<Self> {
@@ -86,5 +71,41 @@ impl<'a> IntoIterator for &'a ParametricComposite {
 
     fn into_iter(self) -> Self::IntoIter {
         self.components.iter()
+    }
+}
+
+pub trait ClosestPointQuery {
+    fn closest_point(&self, query: Point2<f32>) -> Option<Point2<f32>>;
+}
+
+impl ClosestPointQuery for Line {
+    fn closest_point(&self, query: Point2<f32>) -> Option<Point2<f32>> {
+        let t: f32 = dot(query - self.point1, self.point2 - self.point1)
+            / self.point1.distance2(self.point2);
+        let closest_point: Point2<f32> = self.point_along(t);
+        Some(closest_point)
+    }
+}
+
+impl ClosestPointQuery for Geom2D {
+    fn closest_point(&self, query: Point2<f32>) -> Option<Point2<f32>> {
+        match self {
+            Geom2D::Line(line) => line.closest_point(query),
+        }
+    }
+}
+
+impl ClosestPointQuery for ParametricComposite {
+    fn closest_point(&self, query: Point2<f32>) -> Option<Point2<f32>> {
+        self.into_iter()
+            .filter_map(|c| c.closest_point(query))
+            .min_by(|x, y| {
+                query
+                    .distance2(*x)
+                    .partial_cmp(&query.distance2(*y))
+                    .expect(
+                        "Closest point can not be found, because there are NaN values in one of the points."
+                    )
+            })
     }
 }
