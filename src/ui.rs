@@ -1,41 +1,84 @@
 pub mod draw {
     use crate::geometry;
-    use anyhow::{Context, Result};
+    use anyhow::{Context, Result, bail};
     use cgmath::Point2;
-    use plotters::{coord::types::RangedCoordf32, prelude::*};
+    use plotters::{
+        coord::types::RangedCoordf32,
+        prelude::*,
+        style::colors::colormaps,
+        style::full_palette::{AMBER, BLUEGREY_A700, DEEPORANGE_A700},
+    };
 
-    pub fn draw_circle() -> Result<(), Box<dyn std::error::Error>> {
-        let backend = SVGBackend::new("output.svg", (800, 600)).into_drawing_area();
-        backend.fill(&WHITE)?;
-        backend.draw(&Circle::new(
-            (400, 300),
-            200,
-            Into::<ShapeStyle>::into(&RED).filled(),
-        ))?;
-        backend.present()?;
-        Ok(())
+    pub struct CanvasPDE2D<'a> {
+        resolution: [usize; 2],
+        backend: DrawingArea<SVGBackend<'a>, Cartesian2d<RangedCoordf32, RangedCoordf32>>,
     }
-
-    pub fn draw_parametric(pc: &geometry::ParametricComposite) -> Result<()> {
-        let root = SVGBackend::new("output.svg", (1000, 1000)).into_drawing_area();
-        let root = root.apply_coord_spec(Cartesian2d::<RangedCoordf32, RangedCoordf32>::new(
-            0f32..1f32,
-            1f32..0f32,
-            (0..1000, 0..1000),
-        ));
-        root.fill(&BLUE)?;
-        for component in pc.into_iter() {
-            match component {
-                geometry::Geom2D::Line(line) => root.draw(&PathElement::new(
-                    [translate(&line.points()[0]), translate(&line.points()[1])],
-                    Into::<ShapeStyle>::into(&WHITE).filled().stroke_width(10),
-                ))?,
-            };
+    impl<'a> CanvasPDE2D<'a> {
+        pub fn new(file_path: &'a str, resolution: [usize; 2]) -> Self {
+            let backend = SVGBackend::new(file_path, (resolution[0] as u32, resolution[1] as u32))
+                .into_drawing_area();
+            let backend =
+                backend.apply_coord_spec(Cartesian2d::<RangedCoordf32, RangedCoordf32>::new(
+                    0f32..1f32,
+                    1f32..0f32,
+                    (0..resolution[0] as i32, 0..resolution[1] as i32),
+                ));
+            Self {
+                resolution,
+                backend,
+            }
         }
-        root.present()?;
-        Ok(())
+        pub fn present(self) -> Result<()> {
+            self.backend.present()?;
+            Ok(())
+        }
+        pub fn draw_parametric(
+            &self,
+            pc: &geometry::ParametricComposite,
+            line_width: u32,
+            line_colour: RGBColor,
+        ) -> Result<()> {
+            for component in pc.into_iter() {
+                match component {
+                    geometry::Geom2D::Line(line) => self.backend.draw(&PathElement::new(
+                        [translate(&line.points()[0]), translate(&line.points()[1])],
+                        Into::<ShapeStyle>::into(&line_colour)
+                            .filled()
+                            .stroke_width(line_width),
+                    ))?,
+                };
+            }
+            Ok(())
+        }
+        pub fn draw_result(&self, res_to_draw: &Vec<f32>) -> Result<()> {
+            if res_to_draw.len() != self.resolution[0] * self.resolution[1] {
+                bail!("Result does not match canvas resolution.")
+            }
+            let colormap = DerivedColorMap::new(&[BLUEGREY_A700, AMBER, DEEPORANGE_A700]);
+            let min: &f32 = res_to_draw
+                .iter()
+                .reduce(|l, r| if l >= r { r } else { l })
+                .expect("Failed to find minimum in result vector.");
+            let max: &f32 = res_to_draw
+                .iter()
+                .reduce(|l, r| if l <= r { r } else { l })
+                .expect("Failed to find maximum in result vector.");
+            let max: &f32 = if min != max { max } else { &(max + 1f32) };
+            for value in res_to_draw.iter().enumerate() {
+                let x_coord = value.0 % self.resolution[0];
+                // Here the division is floor division because we are using rust integers.
+                let y_coord = value.0 / self.resolution[0];
+                self.backend.draw_pixel(
+                    (
+                        x_coord as f32 / self.resolution[0] as f32,
+                        y_coord as f32 / self.resolution[1] as f32,
+                    ),
+                    &colormap.get_color_normalized(value.1.clone(), min.clone(), max.clone()),
+                )?;
+            }
+            Ok(())
+        }
     }
-
     fn translate(from: &Point2<f32>) -> (f32, f32) {
         (from.x.clone() as f32, from.y.clone() as f32)
     }
