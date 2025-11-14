@@ -53,10 +53,29 @@ impl ParametricComposite {
         );
         Ok(self.components.push(new_line))
     }
+    pub fn print_locations(&self) {
+        println!("----------PC-------------");
+        for (id, component) in self.into_iter().enumerate() {
+            match component {
+                Geom2D::Line(line) => {
+                    let point1 = line.points()[0];
+                    let point2 = line.points()[1];
+                    println!(
+                        "Line with id {id} is between points ({}, {}) and ({}, {})",
+                        point1.x, point1.y, point2.x, point2.y
+                    )
+                }
+            };
+        }
+        println!("-------------------------");
+    }
 }
 
 impl Parametric for Line {
     fn point_along(&self, t: f32) -> Point2<f32> {
+        //if t != t.clamp(0f32, 1f32) {
+        //    println! {"t was clamped from {t}"}
+        //}
         self.point1 + (self.point2 - self.point1) * t.clamp(0f32, 1f32)
     }
 }
@@ -80,10 +99,14 @@ pub trait ClosestPointQuery {
 
 impl ClosestPointQuery for Line {
     fn closest_point(&self, query: Point2<f32>) -> Option<Point2<f32>> {
-        let t: f32 = dot(query - self.point1, self.point2 - self.point1)
+        let t: f32 = -dot(self.point1 - query, self.point2 - self.point1)
             / self.point1.distance2(self.point2);
-        let closest_point: Point2<f32> = self.point_along(t);
-        Some(closest_point)
+        if t.is_nan() {
+            None
+        } else {
+            let closest_point: Point2<f32> = self.point_along(t);
+            Some(closest_point)
+        }
     }
 }
 
@@ -100,12 +123,14 @@ impl ClosestPointQuery for ParametricComposite {
         self.into_iter()
             .filter_map(|c| c.closest_point(query))
             .min_by(|x, y| {
-                query
+                let Some(ordering) = query
                     .distance2(*x)
                     .partial_cmp(&query.distance2(*y))
-                    .expect(
-                        "Closest point can not be found, because there are NaN values in one of the points."
-                    )
+                    else {
+                        panic!("Closest point can not be found, because there are NaN values in one of the points.\n
+                        Closest point query P1 = ({},{}), P2 = ({}, {})", x.x, x.y, y.x, x.y)
+                    };
+                ordering
             })
     }
 }

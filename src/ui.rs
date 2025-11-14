@@ -11,25 +11,24 @@ pub mod draw {
 
     pub struct CanvasPDE2D<'a> {
         resolution: [usize; 2],
-        backend: DrawingArea<SVGBackend<'a>, Cartesian2d<RangedCoordf32, RangedCoordf32>>,
+        root: DrawingArea<BitMapBackend<'a>, Cartesian2d<RangedCoordf32, RangedCoordf32>>,
     }
     impl<'a> CanvasPDE2D<'a> {
         pub fn new(file_path: &'a str, resolution: [usize; 2]) -> Self {
-            let backend = SVGBackend::new(file_path, (resolution[0] as u32, resolution[1] as u32))
-                .into_drawing_area();
             let backend =
-                backend.apply_coord_spec(Cartesian2d::<RangedCoordf32, RangedCoordf32>::new(
-                    0f32..1f32,
-                    1f32..0f32,
-                    (0..resolution[0] as i32, 0..resolution[1] as i32),
-                ));
-            Self {
-                resolution,
-                backend,
-            }
+                BitMapBackend::new(file_path, (resolution[0] as u32, resolution[1] as u32));
+            let root = backend.into_drawing_area().apply_coord_spec(Cartesian2d::<
+                RangedCoordf32,
+                RangedCoordf32,
+            >::new(
+                0f32..1f32,
+                1f32..0f32,
+                (0..resolution[0] as i32, 0..resolution[1] as i32),
+            ));
+            Self { resolution, root }
         }
         pub fn present(self) -> Result<()> {
-            self.backend.present()?;
+            self.root.present()?;
             Ok(())
         }
         pub fn draw_parametric(
@@ -40,7 +39,7 @@ pub mod draw {
         ) -> Result<()> {
             for component in pc.into_iter() {
                 match component {
-                    geometry::Geom2D::Line(line) => self.backend.draw(&PathElement::new(
+                    geometry::Geom2D::Line(line) => self.root.draw(&PathElement::new(
                         [translate(&line.points()[0]), translate(&line.points()[1])],
                         Into::<ShapeStyle>::into(&line_colour)
                             .filled()
@@ -56,11 +55,11 @@ pub mod draw {
             }
             let colormap = DerivedColorMap::new(&[BLUEGREY_A700, AMBER, DEEPORANGE_A700]);
             let min: &f32 = res_to_draw
-                .iter()
+                .into_iter()
                 .reduce(|l, r| if l >= r { r } else { l })
                 .expect("Failed to find minimum in result vector.");
             let max: &f32 = res_to_draw
-                .iter()
+                .into_iter()
                 .reduce(|l, r| if l <= r { r } else { l })
                 .expect("Failed to find maximum in result vector.");
             let max: &f32 = if min != max { max } else { &(max + 1f32) };
@@ -68,7 +67,7 @@ pub mod draw {
                 let x_coord = value.0 % self.resolution[0];
                 // Here the division is floor division because we are using rust integers.
                 let y_coord = value.0 / self.resolution[0];
-                self.backend.draw_pixel(
+                self.root.draw_pixel(
                     (
                         x_coord as f32 / self.resolution[0] as f32,
                         y_coord as f32 / self.resolution[1] as f32,
