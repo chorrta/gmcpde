@@ -87,6 +87,8 @@ impl MonteCarloPDE2D {
     where
         G: ClosestPointQuery,
     {
+        const DISTANCE_TO_START_RR: f32 = 5.0;
+        const DEATH_CHANCE: f32 = 0.25;
         let mut result_of_pixel: f32 = 0f32;
         let mut rng = rand::rng();
         for walk in 0..self.num_walks_pixel {
@@ -94,7 +96,7 @@ impl MonteCarloPDE2D {
             let mut n = 0;
             let mut previous_cbp = Point2::new(0f32, 0f32);
             let mut previous_point_to_check = point_to_check.clone();
-            while n < self.max_walk_length {
+            loop {
                 let Some(closest_boundry_point) = geometry.closest_point(point_to_check) else {
                     bail!(
                         "Couldn't find closest boundry point.
@@ -113,7 +115,12 @@ impl MonteCarloPDE2D {
                 };
                 let sphere_radius: f32 = closest_boundry_point.distance(point_to_check);
                 if sphere_radius < self.stop_tol {
+                    result_of_pixel += boundry_function(point_to_check);
                     break;
+                } else if sphere_radius > DISTANCE_TO_START_RR {
+                    if rng.sample::<f32, StandardUniform>(StandardUniform) > DEATH_CHANCE {
+                        break;
+                    }
                 }
                 let random_direction: Rad<f32> = Rad(2.0
                     * std::f32::consts::PI
@@ -123,22 +130,25 @@ impl MonteCarloPDE2D {
                         sphere_radius * random_direction.cos(),
                         sphere_radius * random_direction.sin(),
                     );
+                // #[cfg(test)]
+                // if point_to_check_initial == Point2::new(2f32, 2f32) && walk == 0 {
+                //     println!(
+                //         "Step {n} point to check is ({}, {})",
+                //         point_to_check.x, point_to_check.y
+                //     );
+                //     println!(
+                //         "  Sphere radius is {}, Stopping tolerence is {})",
+                //         sphere_radius, self.stop_tol
+                //     );
+                // }
                 n += 1;
-                #[cfg(test)]
-                if point_to_check_initial == Point2::new(2f32, 2f32) && walk == 0 {
-                    println!(
-                        "Step {n} point to check is ({}, {})",
-                        point_to_check.x, point_to_check.y
-                    );
-                    println!(
-                        "  Sphere radius is {}, Stopping tolerence is {})",
-                        sphere_radius, self.stop_tol
-                    );
+                if n >= self.max_walk_length {
+                    result_of_pixel += boundry_function(point_to_check);
+                    break;
                 }
                 previous_cbp = closest_boundry_point;
                 previous_point_to_check = point_to_check.clone();
             }
-            result_of_pixel += boundry_function(point_to_check);
         }
         Ok(result_of_pixel / (self.num_walks_pixel as f32))
     }

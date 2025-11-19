@@ -3,37 +3,29 @@
 //#![warn(clippy::cargo)]
 //#![warn(clippy::nursery)]
 use cgmath::Point2;
+use plotters::prelude::full_palette;
 mod compute;
 mod geometry;
 mod ui;
 
 fn main() {
-    const WALKS_PER_PIXEL: usize = 50;
-    const MAX_WALKS: usize = 100;
+    const WALKS_PER_PIXEL: usize = 300;
+    const MAX_STEP_LENGTH: usize = 100;
     const STOPPING_TOL: f32 = 2e-10;
-    const OUTPUT_PATH: &str = "outputs/first_result.bmp";
-    const RESOLUTION: [usize; 2] = [2000, 2000];
+    const OUTPUT_PATH: &str = "result.bmp";
+    const RESOLUTION: [usize; 2] = [1000, 1000];
 
     let mut pc = geometry::ParametricComposite::new();
-    pc.push_line(Point2::new(0.1f32, 0f32), Point2::new(0.50f32, 1f32))
-        .unwrap();
-    pc.push_line(Point2::new(0.30f32, 0.50f32), Point2::new(0.70f32, 0.50f32))
-        .unwrap();
-    pc.push_line(Point2::new(0.50f32, 1f32), Point2::new(0.90f32, 0f32))
-        .unwrap();
+    pc.add_letter_a_to_pc(0.5f32).unwrap();
+    pc.print_locations();
     let canvas = ui::draw::CanvasPDE2D::new(OUTPUT_PATH, RESOLUTION);
     let renderer =
-        compute::MonteCarloPDE2D::new(RESOLUTION, WALKS_PER_PIXEL, MAX_WALKS, STOPPING_TOL);
+        compute::MonteCarloPDE2D::new(RESOLUTION, WALKS_PER_PIXEL, MAX_STEP_LENGTH, STOPPING_TOL);
     let result = renderer
-        .find_pde(
-            &pc,
-            compute::Method2D::Laplacian(|p| {
-                p.x + p.y + 2000000f32 / (1000f32 + p.x) * (500f32 + p.y)
-            }),
-        )
+        .find_pde(&pc, compute::Method2D::Laplacian(|_| 1f32))
         .unwrap();
     canvas.draw_result(&result).unwrap();
-    //canvas.draw_parametric(&pc, 1, full_palette::BLACK).unwrap();
+    canvas.draw_parametric(&pc, 1, full_palette::WHITE).unwrap();
     canvas.present().unwrap();
 }
 
@@ -87,8 +79,8 @@ mod tests {
     #[test]
     fn draw_result_with_geom() {
         let pc = ParametricComposite::new();
-        //let pc = add_letter_a_to_pc(pc);
-        let pc = add_border_to_pc(pc);
+        let pc = add_letter_a_to_pc(pc);
+        // let pc = add_border_to_pc(pc);
         pc.print_locations();
         let resolution: [usize; 2] = [100, 100];
         let canvas = draw::CanvasPDE2D::new("outputs/tests/test_result_w_geom.bmp", resolution);

@@ -53,6 +53,55 @@ impl ParametricComposite {
         );
         Ok(self.components.push(new_line))
     }
+    pub fn add_letter_a_to_pc(&mut self, scaling_factor: f32) -> Result<()> {
+        let offset_x: f32 = (1f32 - scaling_factor) / 2f32;
+        let offset_y: f32 = (1f32 - scaling_factor) / 2f32;
+        self.push_line(
+            Point2::new(
+                0f32 * scaling_factor + offset_x,
+                0f32 * scaling_factor + offset_y,
+            ),
+            Point2::new(
+                0.50f32 * scaling_factor + offset_x,
+                1f32 * scaling_factor + offset_y,
+            ),
+        )?;
+        self.push_line(
+            Point2::new(
+                0.30f32 * scaling_factor + offset_x,
+                0.50f32 * scaling_factor + offset_y,
+            ),
+            Point2::new(
+                0.70f32 * scaling_factor + offset_x,
+                0.50f32 * scaling_factor + offset_y,
+            ),
+        )?;
+        self.push_line(
+            Point2::new(
+                0.50f32 * scaling_factor + offset_x,
+                1f32 * scaling_factor + offset_y,
+            ),
+            Point2::new(
+                1f32 * scaling_factor + offset_x,
+                0f32 * scaling_factor + offset_y,
+            ),
+        )?;
+        Ok(())
+    }
+    pub fn add_border_to_pc(&mut self) -> Result<()> {
+        const MIN_VALUE_FOR_SQUARE: f32 = 0f32;
+        const MAX_VALUE_FOR_SQUARE: f32 = 1f32;
+        let corner1 = Point2::new(MIN_VALUE_FOR_SQUARE, MIN_VALUE_FOR_SQUARE);
+        let corner2 = Point2::new(MAX_VALUE_FOR_SQUARE, MIN_VALUE_FOR_SQUARE);
+        let corner3 = Point2::new(MIN_VALUE_FOR_SQUARE, MAX_VALUE_FOR_SQUARE);
+        let corner4 = Point2::new(MAX_VALUE_FOR_SQUARE, MAX_VALUE_FOR_SQUARE);
+        self.push_line(corner1, corner2)?;
+        self.push_line(corner2, corner4)?;
+        self.push_line(corner4, corner3)?;
+        self.push_line(corner3, corner1)?;
+        Ok(())
+    }
+
     pub fn print_locations(&self) {
         println!("----------PC-------------");
         for (id, component) in self.into_iter().enumerate() {
