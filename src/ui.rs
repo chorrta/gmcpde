@@ -5,27 +5,38 @@ pub mod draw {
     use plotters::{
         coord::types::RangedCoordf32,
         prelude::*,
-        style::colors::colormaps,
-        style::full_palette::{AMBER, BLUEGREY_A700, DEEPORANGE_A700},
+        style::{
+            colors::colormaps,
+            full_palette::{AMBER, BLUEGREY_A700, DEEPORANGE_A700, DEEPPURPLE_600, INDIGO, ORANGE},
+        },
     };
 
     pub struct CanvasPDE2D<'a> {
         resolution: [usize; 2],
+        coordinates_range: [f32; 2],
         root: DrawingArea<BitMapBackend<'a>, Cartesian2d<RangedCoordf32, RangedCoordf32>>,
     }
     impl<'a> CanvasPDE2D<'a> {
-        pub fn new(file_path: &'a str, resolution: [usize; 2]) -> Self {
+        pub fn new(
+            file_path: &'a str,
+            resolution: [usize; 2],
+            coordinates_range: [f32; 2],
+        ) -> Self {
             let backend =
                 BitMapBackend::new(file_path, (resolution[0] as u32, resolution[1] as u32));
             let root = backend.into_drawing_area().apply_coord_spec(Cartesian2d::<
                 RangedCoordf32,
                 RangedCoordf32,
             >::new(
-                0f32..1f32,
-                1f32..0f32,
+                0f32..coordinates_range[0],
+                coordinates_range[1]..0f32 - 1f32 / resolution[1] as f32,
                 (0..resolution[0] as i32, 0..resolution[1] as i32),
             ));
-            Self { resolution, root }
+            Self {
+                resolution,
+                coordinates_range,
+                root,
+            }
         }
         pub fn present(self) -> Result<()> {
             self.root.present()?;
@@ -53,7 +64,20 @@ pub mod draw {
             if res_to_draw.len() != self.resolution[0] * self.resolution[1] {
                 bail!("Result does not match canvas resolution.")
             }
-            let colormap = DerivedColorMap::new(&[BLUEGREY_A700, AMBER, DEEPORANGE_A700]);
+            let colormap = DerivedColorMap::new(&[BLACK, WHITE, DEEPORANGE_A700]);
+            //let colormap = DerivedColorMap::new(&[RGBColor(112, 181, 150), RGBColor(203, 109, 81)]);
+            //let colormap = DerivedColorMap::new(&[RGBColor(0, 255, 255), RGBColor(255, 0, 255)]);
+            //let colormap = DerivedColorMap::new(&[RGBColor(0, 0, 0), RGBColor(255, 255, 255)]);
+            //let colormap = DerivedColorMap::new(&[WHITE, BLACK]);
+            //let colormap = DerivedColorMap::new(&[
+            //    RED,
+            //    ORANGE,
+            //    YELLOW,
+            //    GREEN,
+            //    BLUE,
+            //    INDIGO,
+            //    RGBColor(238, 130, 238),
+            //]);
             let min: &f32 = res_to_draw
                 .into_iter()
                 .reduce(|l, r| if l >= r { r } else { l })
@@ -69,8 +93,8 @@ pub mod draw {
                 let y_coord = value.0 / self.resolution[0];
                 self.root.draw_pixel(
                     (
-                        x_coord as f32 / self.resolution[0] as f32,
-                        y_coord as f32 / self.resolution[1] as f32,
+                        x_coord as f32 * self.coordinates_range[0] / self.resolution[0] as f32,
+                        y_coord as f32 * self.coordinates_range[1] / self.resolution[1] as f32,
                     ),
                     &colormap.get_color_normalized(value.1.clone(), min.clone(), max.clone()),
                 )?;

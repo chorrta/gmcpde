@@ -16,6 +16,7 @@ enum LaplaceResult {}
 
 pub struct MonteCarloPDE2D {
     pub resolution: [usize; 2],
+    pub coordinates: [f32; 2],
     pub num_walks_pixel: usize,
     pub max_walk_length: usize,
     pub stop_tol: f32,
@@ -24,18 +25,28 @@ pub struct MonteCarloPDE2D {
 impl MonteCarloPDE2D {
     pub fn new(
         resolution: [usize; 2],
+        coordinates: [f32; 2],
         num_walks_pixel: usize,
         max_walk_length: usize,
         stop_tol: f32,
     ) -> Self {
         Self {
             resolution,
+            coordinates,
             num_walks_pixel,
             max_walk_length,
             stop_tol,
         }
     }
-    pub fn find_pde<G>(&self, geometry: &G, method: Method2D) -> Result<Vec<f32>>
+    fn return_default_num_walks(&self, pixel_location: &Point2<f32>) -> usize {
+        self.num_walks_pixel
+    }
+    pub fn find_pde<G>(
+        &self,
+        geometry: &G,
+        method: Method2D,
+        importance_sampling: Option<fn(&Point2<f32>) -> usize>,
+    ) -> Result<Vec<f32>>
     where
         G: ClosestPointQuery + Clone + Send + Sync,
     {
@@ -61,15 +72,28 @@ impl MonteCarloPDE2D {
                     let x_coord: usize = pixel_id % self.resolution[0];
                     let y_coord: usize = pixel_id / self.resolution[0];
                     Point2::new(
-                        x_coord as f32 / self.resolution[0] as f32,
-                        y_coord as f32 / self.resolution[1] as f32,
+                        x_coord as f32 * self.coordinates[0] / self.resolution[0] as f32,
+                        y_coord as f32 * self.coordinates[1] / self.resolution[1] as f32,
                     )
                 };
+                //for pixel_id in result_buffer.clone().into_iter().enumerate() {
+                //    println!(
+                //        "p_id {}, point_to_check {}, {}",
+                //        pixel_id.0,
+                //        pid_to_point(pixel_id.0).x,
+                //        pid_to_point(pixel_id.0).y
+                //    )
+                //}
                 let result_buffer: Vec<f32> = result_buffer
                     .into_par_iter()
                     .enumerate()
                     .map(|pixel| {
-                        self.wos_laplace(geometry, pid_to_point(pixel.0), &boundry_function)
+                        let pixel_location: Point2<f32> = pid_to_point(pixel.0);
+                        let walks_pixel: usize = match importance_sampling {
+                            Some(importance_sampling) => importance_sampling(&pixel_location),
+                            _ => self.num_walks_pixel,
+                        };
+                        self.wos_laplace(geometry, pixel_location, &boundry_function, walks_pixel)
                             .context("When using WoS Laplace.")
                             .unwrap()
                     })
@@ -83,15 +107,19 @@ impl MonteCarloPDE2D {
         geometry: &G,
         point_to_check_initial: Point2<f32>,
         boundry_function: &fn(Point2<f32>) -> f32,
+        num_walks_pixel: usize,
     ) -> Result<f32>
     where
         G: ClosestPointQuery,
     {
-        const DISTANCE_TO_START_RR: f32 = 5.0;
-        const DEATH_CHANCE: f32 = 0.25;
+        const DISTANCE_TO_START_RR_SCALING: f32 = 0.05f32;
+        const DEATH_CHANCE: f32 = 0.6f32;
+        let distance_to_start_rr: f32 = DISTANCE_TO_START_RR_SCALING
+            * (self.coordinates[0] + self.coordinates[1]) as f32
+            / 2f32;
         let mut result_of_pixel: f32 = 0f32;
         let mut rng = rand::rng();
-        for walk in 0..self.num_walks_pixel {
+        for walk in 0..num_walks_pixel {
             let mut point_to_check = point_to_check_initial.clone();
             let mut n = 0;
             let mut previous_cbp = Point2::new(0f32, 0f32);
@@ -117,10 +145,13 @@ impl MonteCarloPDE2D {
                 if sphere_radius < self.stop_tol {
                     result_of_pixel += boundry_function(point_to_check);
                     break;
-                } else if sphere_radius > DISTANCE_TO_START_RR {
-                    if rng.sample::<f32, StandardUniform>(StandardUniform) > DEATH_CHANCE {
-                        break;
-                    }
+                } else if (-sphere_radius / distance_to_start_rr
+                    * rng.sample::<f32, StandardUniform>(StandardUniform)
+                    + 1f32)
+                    .exp()
+                    < DEATH_CHANCE
+                {
+                    break;
                 }
                 let random_direction: Rad<f32> = Rad(2.0
                     * std::f32::consts::PI
@@ -150,7 +181,7 @@ impl MonteCarloPDE2D {
                 previous_point_to_check = point_to_check.clone();
             }
         }
-        Ok(result_of_pixel / (self.num_walks_pixel as f32))
+        Ok(result_of_pixel / (num_walks_pixel as f32))
     }
 }
 

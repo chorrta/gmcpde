@@ -90,7 +90,7 @@ impl ParametricComposite {
     }
     pub fn add_border_to_pc(&mut self) -> Result<()> {
         const MIN_VALUE_FOR_SQUARE: f32 = 0f32;
-        const MAX_VALUE_FOR_SQUARE: f32 = 1f32;
+        const MAX_VALUE_FOR_SQUARE: f32 = 0.9f32;
         let corner1 = Point2::new(MIN_VALUE_FOR_SQUARE, MIN_VALUE_FOR_SQUARE);
         let corner2 = Point2::new(MAX_VALUE_FOR_SQUARE, MIN_VALUE_FOR_SQUARE);
         let corner3 = Point2::new(MIN_VALUE_FOR_SQUARE, MAX_VALUE_FOR_SQUARE);

@@ -2,30 +2,114 @@
 //#![warn(clippy::pedantic)]
 //#![warn(clippy::cargo)]
 //#![warn(clippy::nursery)]
-use cgmath::Point2;
+use cgmath::{Point2, num_traits::sign};
 use plotters::prelude::full_palette;
+use std::{f32::consts::PI, time::Instant};
 mod compute;
 mod geometry;
 mod ui;
 
 fn main() {
-    const WALKS_PER_PIXEL: usize = 300;
+    const WALKS_PER_PIXEL: usize = 100;
     const MAX_STEP_LENGTH: usize = 100;
     const STOPPING_TOL: f32 = 2e-10;
     const OUTPUT_PATH: &str = "result.bmp";
-    const RESOLUTION: [usize; 2] = [1000, 1000];
+    const RESOLUTION: [usize; 2] = [1000, 500];
+    const COORDINATES: [f32; 2] = [1000f32, 500f32];
 
     let mut pc = geometry::ParametricComposite::new();
-    pc.add_letter_a_to_pc(0.5f32).unwrap();
+    //pc.add_letter_a_to_pc(0.5f32).unwrap();
+    pc.push_line(
+        Point2 {
+            x: -1f32 * COORDINATES[0],
+            y: 0.4f32 * COORDINATES[1],
+        },
+        Point2 {
+            x: 2f32 * COORDINATES[0],
+            y: 0.40f32 * COORDINATES[1],
+        },
+    )
+    .unwrap();
+    pc.push_line(
+        Point2 {
+            x: -1f32 * COORDINATES[0],
+            y: 0.6f32 * COORDINATES[1],
+        },
+        Point2 {
+            x: 2f32 * COORDINATES[0],
+            y: 0.6f32 * COORDINATES[1],
+        },
+    )
+    .unwrap();
+    pc.push_line(
+        Point2 {
+            x: -1f32 * COORDINATES[0],
+            y: 0.2f32 * COORDINATES[1],
+        },
+        Point2 {
+            x: 2f32 * COORDINATES[0],
+            y: 0.2f32 * COORDINATES[1],
+        },
+    )
+    .unwrap();
+    pc.push_line(
+        Point2 {
+            x: -1f32 * COORDINATES[0],
+            y: 0.8f32 * COORDINATES[1],
+        },
+        Point2 {
+            x: 2f32 * COORDINATES[0],
+            y: 0.8f32 * COORDINATES[1],
+        },
+    )
+    .unwrap();
+
+    //pc.push_line(
+    //    Point2 {
+    //        x: -20f32 / 2f32,
+    //        y: 24f32 / 2f32,
+    //    },
+    //    Point2 {
+    //        x: 420f32 / 2f32,
+    //        y: 25f32 / 2f32,
+    //    },
+    //)
+    //.unwrap();
+
+    //pc.add_border_to_pc().unwrap();
     pc.print_locations();
-    let canvas = ui::draw::CanvasPDE2D::new(OUTPUT_PATH, RESOLUTION);
-    let renderer =
-        compute::MonteCarloPDE2D::new(RESOLUTION, WALKS_PER_PIXEL, MAX_STEP_LENGTH, STOPPING_TOL);
+    let canvas = ui::draw::CanvasPDE2D::new(OUTPUT_PATH, RESOLUTION, COORDINATES);
+    let renderer = compute::MonteCarloPDE2D::new(
+        RESOLUTION,
+        COORDINATES,
+        WALKS_PER_PIXEL,
+        MAX_STEP_LENGTH,
+        STOPPING_TOL,
+    );
+    let pde_start_instant = Instant::now();
     let result = renderer
-        .find_pde(&pc, compute::Method2D::Laplacian(|_| 1f32))
+        .find_pde(
+            &pc,
+            compute::Method2D::Laplacian(|p| {
+                if p.y == 0.6f32 * COORDINATES[1] {
+                    if p.x % 100f32 < 50f32 { 1f32 } else { -1f32 }
+                } else if p.y == 0.2f32 * COORDINATES[1] {
+                    if p.x % 50f32 > 25f32 { 1f32 } else { -1f32 }
+                } else if p.y == 0.4f32 * COORDINATES[1] {
+                    1f32
+                } else {
+                    -1f32
+                }
+            }),
+            None,
+        )
         .unwrap();
+    println!(
+        "PDE solving done in {} seconds.",
+        pde_start_instant.elapsed().as_secs_f64()
+    );
     canvas.draw_result(&result).unwrap();
-    canvas.draw_parametric(&pc, 1, full_palette::WHITE).unwrap();
+    //canvas.draw_parametric(&pc, 1, full_palette::WHITE).unwrap();
     canvas.present().unwrap();
 }
 
